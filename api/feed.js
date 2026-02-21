@@ -6,8 +6,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "חסר קישור לערוץ" });
   }
 
-  const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rss_url)}`;
-
+  const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rss_url)}&count=30`;
   try {
     const fetchResponse = await fetch(apiUrl);
     const data = await fetchResponse.json();
