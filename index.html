@@ -8,7 +8,7 @@
       :root {
         --bg-color: #f3f4f6;
         --card-bg: #ffffff;
-        --primary-color: #3390ec; /* צבע כחול בסגנון טלגרם */
+        --primary-color: #3390ec;
         --text-color: #000000;
         --text-muted: #707579;
         --border-radius: 12px;
@@ -35,16 +35,15 @@
         font-size: 1.2rem;
         font-weight: bold;
       }
-      /* עיצוב התפריט הנגלל */
       .tabs-container {
         display: flex;
         overflow-x: auto;
         padding: 10px 15px;
         gap: 10px;
-        scrollbar-width: none; /* מסתיר את פס הגלילה ב-Firefox */
+        scrollbar-width: none;
       }
       .tabs-container::-webkit-scrollbar {
-        display: none; /* מסתיר את פס הגלילה ב-Chrome/Safari */
+        display: none;
       }
       .tab {
         background-color: var(--bg-color);
@@ -68,7 +67,6 @@
         margin: 20px auto;
         padding: 0 15px;
       }
-      /* עיצוב הפוסטים */
       .post {
         background: var(--card-bg);
         padding: 15px;
@@ -77,13 +75,6 @@
         box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
         line-height: 1.5;
         overflow-wrap: break-word;
-      }
-      .post img,
-      .post video {
-        max-width: 100%;
-        height: auto;
-        border-radius: 8px;
-        margin-top: 10px;
       }
       .date {
         color: var(--text-muted);
@@ -115,20 +106,16 @@
 
     <script>
       // ==========================================
-      // כאן אתה מנהל את הערוצים שלך!
-      // הוסף או הסר שורות לפי התבנית הזו:
+      // עכשיו מספיק לכתוב רק את מזהה הערוץ!
       // ==========================================
       const channels = [
-        {
-          name: "דסק אבו סאלח",
-          url: "https://rss-bridge.org/bridge01/?action=display&bridge=Telegram&username=salehdesk1&format=Mrss",
-        },
+        { name: "דסק אבו סאלח", id: "salehdesk1" },
+        { name: "עמית סגל", id: "amitsegal" }, // הוספתי כדוגמה, תוכל למחוק או לשנות
       ];
 
       const tabsContainer = document.getElementById("tabs");
       const feedContainer = document.getElementById("feed");
 
-      // פונקציה לבניית כפתורי התפריט
       function renderTabs() {
         channels.forEach((channel, index) => {
           const btn = document.createElement("button");
@@ -136,26 +123,22 @@
           btn.textContent = channel.name;
 
           btn.onclick = () => {
-            // עדכון המראה של הכפתור הלחוץ
             document
               .querySelectorAll(".tab")
               .forEach((t) => t.classList.remove("active"));
             btn.classList.add("active");
-            // טעינת התוכן
-            loadFeed(channel.url);
+            loadFeed(channel.id);
           };
-
           tabsContainer.appendChild(btn);
         });
       }
 
-      // פונקציה למשיכת התוכן מהשרת
-      function loadFeed(rssUrl) {
+      function loadFeed(channelId) {
         feedContainer.innerHTML =
-          '<div class="loader">טוען עדכונים... ⏳</div>';
+          '<div class="loader">טוען עדכונים ישירות מטלגרם... ⏳</div>';
 
-        // פניה לשרת שלנו בורסל עם הקישור הספציפי
-        fetch(`/api/feed?rss_url=${encodeURIComponent(rssUrl)}`)
+        // פנייה לשרת שלנו רק עם ה-ID של הערוץ
+        fetch(`/api/feed?channel=${channelId}`)
           .then((response) => response.json())
           .then((data) => {
             feedContainer.innerHTML = "";
@@ -169,7 +152,6 @@
             data.items.forEach((item) => {
               const postDiv = document.createElement("div");
               postDiv.className = "post";
-              // סידור התאריך לפורמט ישראלי קריא
               const date = new Date(item.pubDate).toLocaleString("he-IL", {
                 year: "numeric",
                 month: "2-digit",
@@ -191,10 +173,9 @@
           });
       }
 
-      // הפעלה ראשונית כשהעמוד עולה
       if (channels.length > 0) {
         renderTabs();
-        loadFeed(channels[0].url); // טוען אוטומטית את הערוץ הראשון ברשימה
+        loadFeed(channels[0].id);
       }
     </script>
   </body>
