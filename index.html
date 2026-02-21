@@ -15,8 +15,8 @@
       }
       body {
         font-family:
-          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
-          Arial, sans-serif;
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial,
+          sans-serif;
         background-color: var(--bg-color);
         margin: 0;
         color: var(--text-color);
@@ -53,7 +53,7 @@
         font-size: 0.95rem;
         cursor: pointer;
         white-space: nowrap;
-        transition: all 0.2s ease;
+        transition: all 0.2s;
         color: var(--text-color);
         font-family: inherit;
       }
@@ -94,6 +94,32 @@
       .post a:hover {
         text-decoration: underline;
       }
+
+      /* עיצוב לכפתור הטעינה הדינמית */
+      .load-more-container {
+        text-align: center;
+        margin: 10px 0 40px;
+      }
+      .load-more-btn {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 24px;
+        font-size: 1rem;
+        cursor: pointer;
+        display: none;
+        transition: 0.2s;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        font-family: inherit;
+      }
+      .load-more-btn:hover {
+        background-color: #287dc9;
+      }
+      .load-more-btn:disabled {
+        background-color: #a0c9f0;
+        cursor: not-allowed;
+      }
     </style>
   </head>
   <body>
@@ -104,17 +130,24 @@
 
     <div class="feed-container" id="feed"></div>
 
+    <div class="load-more-container">
+      <button id="loadMoreBtn" class="load-more-btn">
+        טען פוסטים קודמים 👇
+      </button>
+    </div>
+
     <script>
-      // ==========================================
-      // עכשיו מספיק לכתוב רק את מזהה הערוץ!
-      // ==========================================
       const channels = [
         { name: "דסק אבו סאלח", id: "salehdesk1" },
-        { name: "עמית סגל", id: "amitsegal" }, // הוספתי כדוגמה, תוכל למחוק או לשנות
+        { name: "אבו עלי אקספרס", id: "abualiexpress" },
       ];
+
+      let currentChannelId = "";
+      let currentOffset = null; // ישמור את המזהה של ההודעה הישנה ביותר
 
       const tabsContainer = document.getElementById("tabs");
       const feedContainer = document.getElementById("feed");
+      const loadMoreBtn = document.getElementById("loadMoreBtn");
 
       function renderTabs() {
         channels.forEach((channel, index) => {
@@ -127,25 +160,41 @@
               .querySelectorAll(".tab")
               .forEach((t) => t.classList.remove("active"));
             btn.classList.add("active");
-            loadFeed(channel.id);
+            loadFeed(channel.id, false); // טעינה מחדש של ערוץ
           };
           tabsContainer.appendChild(btn);
         });
       }
 
-      function loadFeed(channelId) {
-        feedContainer.innerHTML =
-          '<div class="loader">טוען עדכונים ישירות מטלגרם... ⏳</div>';
+      function loadFeed(channelId, isLoadMore = false) {
+        currentChannelId = channelId;
 
-        // פנייה לשרת שלנו רק עם ה-ID של הערוץ
-        fetch(`/api/feed?channel=${channelId}`)
+        if (!isLoadMore) {
+          feedContainer.innerHTML =
+            '<div class="loader">טוען עדכונים ישירות מטלגרם... ⏳</div>';
+          currentOffset = null;
+          loadMoreBtn.style.display = "none";
+        } else {
+          loadMoreBtn.textContent = "טוען... ⏳";
+          loadMoreBtn.disabled = true;
+        }
+
+        // בונים את הקישור לשרת בהתאם לשאלה אם זו טעינה רגילה או "היסטוריה"
+        let fetchUrl = `/api/feed?channel=${channelId}`;
+        if (isLoadMore && currentOffset) {
+          fetchUrl += `&before=${currentOffset}`;
+        }
+
+        fetch(fetchUrl)
           .then((response) => response.json())
           .then((data) => {
-            feedContainer.innerHTML = "";
+            if (!isLoadMore) feedContainer.innerHTML = "";
 
             if (!data.items || data.items.length === 0) {
-              feedContainer.innerHTML =
-                '<div class="loader">אין עדכונים בערוץ זה כרגע.</div>';
+              if (!isLoadMore)
+                feedContainer.innerHTML =
+                  '<div class="loader">אין עדכונים בערוץ זה כרגע.</div>';
+              loadMoreBtn.style.display = "none";
               return;
             }
 
@@ -164,18 +213,41 @@
                             <div class="date">${date}</div>
                             <div class="content">${item.description}</div>
                         `;
-              feedContainer.appendChild(postDiv);
+              feedContainer.appendChild(postDiv); // מוסיף את הפוסט לסוף הרשימה
             });
+
+            // מעדכנים את המזהה לפעם הבאה שילחצו "טען עוד"
+            currentOffset = data.nextOffset;
+
+            if (currentOffset) {
+              loadMoreBtn.style.display = "inline-block";
+              loadMoreBtn.textContent = "טען פוסטים קודמים 👇";
+              loadMoreBtn.disabled = false;
+            } else {
+              loadMoreBtn.style.display = "none";
+            }
           })
           .catch((error) => {
-            feedContainer.innerHTML =
-              '<div class="loader">שגיאה בתקשורת מול השרת.</div>';
+            if (!isLoadMore) {
+              feedContainer.innerHTML =
+                '<div class="loader">שגיאה בתקשורת מול השרת.</div>';
+            } else {
+              loadMoreBtn.textContent = "שגיאה. נסה שוב";
+              loadMoreBtn.disabled = false;
+            }
           });
       }
 
+      // מאזין ללחיצה על כפתור "טען עוד"
+      loadMoreBtn.addEventListener("click", () => {
+        if (currentChannelId) {
+          loadFeed(currentChannelId, true);
+        }
+      });
+
       if (channels.length > 0) {
         renderTabs();
-        loadFeed(channels[0].id);
+        loadFeed(channels[0].id, false);
       }
     </script>
   </body>
