@@ -1,0 +1,200 @@
+<!doctype html>
+<html dir="rtl" lang="he">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>הערוצים שלי</title>
+    <style>
+      :root {
+        --bg-color: #f3f4f6;
+        --card-bg: #ffffff;
+        --primary-color: #3390ec; /* צבע כחול בסגנון טלגרם */
+        --text-color: #000000;
+        --text-muted: #707579;
+        --border-radius: 12px;
+      }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+          Arial, sans-serif;
+        background-color: var(--bg-color);
+        margin: 0;
+        color: var(--text-color);
+      }
+      header {
+        background-color: var(--card-bg);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+      .header-title {
+        text-align: center;
+        padding: 15px 0 5px;
+        margin: 0;
+        font-size: 1.2rem;
+        font-weight: bold;
+      }
+      /* עיצוב התפריט הנגלל */
+      .tabs-container {
+        display: flex;
+        overflow-x: auto;
+        padding: 10px 15px;
+        gap: 10px;
+        scrollbar-width: none; /* מסתיר את פס הגלילה ב-Firefox */
+      }
+      .tabs-container::-webkit-scrollbar {
+        display: none; /* מסתיר את פס הגלילה ב-Chrome/Safari */
+      }
+      .tab {
+        background-color: var(--bg-color);
+        border: none;
+        border-radius: 20px;
+        padding: 8px 16px;
+        font-size: 0.95rem;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: all 0.2s ease;
+        color: var(--text-color);
+        font-family: inherit;
+      }
+      .tab.active {
+        background-color: var(--primary-color);
+        color: white;
+        font-weight: bold;
+      }
+      .feed-container {
+        max-width: 600px;
+        margin: 20px auto;
+        padding: 0 15px;
+      }
+      /* עיצוב הפוסטים */
+      .post {
+        background: var(--card-bg);
+        padding: 15px;
+        margin-bottom: 15px;
+        border-radius: var(--border-radius);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        line-height: 1.5;
+        overflow-wrap: break-word;
+      }
+      .post img,
+      .post video {
+        max-width: 100%;
+        height: auto;
+        border-radius: 8px;
+        margin-top: 10px;
+      }
+      .date {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        margin-bottom: 8px;
+      }
+      .loader {
+        text-align: center;
+        color: var(--text-muted);
+        padding: 40px;
+        font-size: 1.1rem;
+      }
+      .post a {
+        color: var(--primary-color);
+        text-decoration: none;
+      }
+      .post a:hover {
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1 class="header-title">הפיד שלי</h1>
+      <div class="tabs-container" id="tabs"></div>
+    </header>
+
+    <div class="feed-container" id="feed"></div>
+
+    <script>
+      // ==========================================
+      // כאן אתה מנהל את הערוצים שלך!
+      // הוסף או הסר שורות לפי התבנית הזו:
+      // ==========================================
+      const channels = [
+        { name: "ערוץ כללי", url: "https://rss.app/feed/EiFOBLryY3qI4XV6" },
+        { name: "חדשות טכנולוגיה", url: "https://rss.app/feed/הקישור-שלך-כאן" },
+        { name: "עוד ערוץ", url: "https://rss.app/feed/הקישור-שלך-כאן" },
+      ];
+
+      const tabsContainer = document.getElementById("tabs");
+      const feedContainer = document.getElementById("feed");
+
+      // פונקציה לבניית כפתורי התפריט
+      function renderTabs() {
+        channels.forEach((channel, index) => {
+          const btn = document.createElement("button");
+          btn.className = `tab ${index === 0 ? "active" : ""}`;
+          btn.textContent = channel.name;
+
+          btn.onclick = () => {
+            // עדכון המראה של הכפתור הלחוץ
+            document
+              .querySelectorAll(".tab")
+              .forEach((t) => t.classList.remove("active"));
+            btn.classList.add("active");
+            // טעינת התוכן
+            loadFeed(channel.url);
+          };
+
+          tabsContainer.appendChild(btn);
+        });
+      }
+
+      // פונקציה למשיכת התוכן מהשרת
+      function loadFeed(rssUrl) {
+        feedContainer.innerHTML =
+          '<div class="loader">טוען עדכונים... ⏳</div>';
+
+        // פניה לשרת שלנו בורסל עם הקישור הספציפי
+        fetch(`/api/feed?rss_url=${encodeURIComponent(rssUrl)}`)
+          .then((response) => response.json())
+          .then((data) => {
+            feedContainer.innerHTML = "";
+
+            if (!data.items || data.items.length === 0) {
+              feedContainer.innerHTML =
+                '<div class="loader">אין עדכונים בערוץ זה כרגע.</div>';
+              return;
+            }
+
+            data.items.forEach((item) => {
+              const postDiv = document.createElement("div");
+              postDiv.className = "post";
+              // סידור התאריך לפורמט ישראלי קריא
+              const date = new Date(item.pubDate).toLocaleString("he-IL", {
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+              });
+
+              postDiv.innerHTML = `
+                            <div class="date">${date}</div>
+                            <div class="content">${item.description}</div>
+                        `;
+              feedContainer.appendChild(postDiv);
+            });
+          })
+          .catch((error) => {
+            feedContainer.innerHTML =
+              '<div class="loader">שגיאה בתקשורת מול השרת.</div>';
+          });
+      }
+
+      // הפעלה ראשונית כשהעמוד עולה
+      if (channels.length > 0) {
+        renderTabs();
+        loadFeed(channels[0].url); // טוען אוטומטית את הערוץ הראשון ברשימה
+      }
+    </script>
+  </body>
+</html>
