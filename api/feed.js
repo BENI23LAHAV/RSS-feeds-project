@@ -55,9 +55,12 @@ export default async function handler(req, res) {
       }
     });
 
-    // מחזירים לדפדפן גם את הפוסטים וגם את מזהה ההודעה הבאה לטעינה
+    // פותר את בעיית האיטיות: שומר בזיכרון (Cache) למשך 60 שניות
+    res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate");
+
     res.status(200).json({ items: items.reverse(), nextOffset: oldestId });
   } catch (error) {
+    // ... המשך הקוד ...
     res.status(500).json({ error: "שגיאה במשיכת הנתונים ישירות מטלגרם" });
   }
 }

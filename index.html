@@ -143,25 +143,46 @@
         { name: "הימין הלא מתנצל", id: "TheBigBadShadow" },
         { name: "חדשות איראן", id: "hadshotiran" },
       ];
+
       let currentChannelId = "";
-      let currentOffset = null; // ישמור את המזהה של ההודעה הישנה ביותר
+      let currentOffset = null;
 
       const tabsContainer = document.getElementById("tabs");
       const feedContainer = document.getElementById("feed");
       const loadMoreBtn = document.getElementById("loadMoreBtn");
 
+      // פונקציה חדשה שמטפלת בניתוב (כדי שהריפרש יעבוד)
+      function handleRouting() {
+        const hash = window.location.hash.substring(1);
+        let activeChannel = channels.find((c) => c.id === hash);
+
+        if (!activeChannel && channels.length > 0) {
+          activeChannel = channels[0];
+          history.replaceState(null, null, "#" + activeChannel.id);
+        }
+
+        if (activeChannel) {
+          document
+            .querySelectorAll(".tab")
+            .forEach((t) => t.classList.remove("active"));
+          const activeBtn = Array.from(document.querySelectorAll(".tab")).find(
+            (btn) => btn.textContent === activeChannel.name,
+          );
+          if (activeBtn) activeBtn.classList.add("active");
+
+          loadFeed(activeChannel.id, false);
+        }
+      }
+
       function renderTabs() {
-        channels.forEach((channel, index) => {
+        channels.forEach((channel) => {
           const btn = document.createElement("button");
-          btn.className = `tab ${index === 0 ? "active" : ""}`;
+          btn.className = "tab";
           btn.textContent = channel.name;
 
           btn.onclick = () => {
-            document
-              .querySelectorAll(".tab")
-              .forEach((t) => t.classList.remove("active"));
-            btn.classList.add("active");
-            loadFeed(channel.id, false); // טעינה מחדש של ערוץ
+            // כאן אנחנו משנים את הכתובת למעלה במקום לטעון ישירות
+            window.location.hash = channel.id;
           };
           tabsContainer.appendChild(btn);
         });
@@ -180,7 +201,6 @@
           loadMoreBtn.disabled = true;
         }
 
-        // בונים את הקישור לשרת בהתאם לשאלה אם זו טעינה רגילה או "היסטוריה"
         let fetchUrl = `/api/feed?channel=${channelId}`;
         if (isLoadMore && currentOffset) {
           fetchUrl += `&before=${currentOffset}`;
@@ -214,10 +234,9 @@
                             <div class="date">${date}</div>
                             <div class="content">${item.description}</div>
                         `;
-              feedContainer.appendChild(postDiv); // מוסיף את הפוסט לסוף הרשימה
+              feedContainer.appendChild(postDiv);
             });
 
-            // מעדכנים את המזהה לפעם הבאה שילחצו "טען עוד"
             currentOffset = data.nextOffset;
 
             if (currentOffset) {
@@ -239,16 +258,17 @@
           });
       }
 
-      // מאזין ללחיצה על כפתור "טען עוד"
       loadMoreBtn.addEventListener("click", () => {
         if (currentChannelId) {
           loadFeed(currentChannelId, true);
         }
       });
 
+      // הפעלה ראשונית וחיבור הניתוב
       if (channels.length > 0) {
         renderTabs();
-        loadFeed(channels[0].id, false);
+        window.addEventListener("hashchange", handleRouting);
+        handleRouting();
       }
     </script>
   </body>
