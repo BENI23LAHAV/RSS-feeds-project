@@ -1,5 +1,4 @@
 export default async function handler(req, res) {
-  // עכשיו השרת יודע לקבל גם פרמטר "before" כדי לטעון היסטוריה אחורה
   const { channel, before } = req.query;
 
   if (!channel) {
@@ -7,21 +6,25 @@ export default async function handler(req, res) {
   }
 
   try {
-    const url = before
+    // הכתובת המקורית של טלגרם שאנחנו רוצים להגיע אליה
+    const targetUrl = before
       ? `https://t.me/s/${channel}?before=${before}`
       : `https://t.me/s/${channel}`;
-      
-    // ======= זה השינוי! הוספנו תעודת זהות של דפדפן =======
-    const response = await fetch(url, {
-        headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5'
-        }
-    });
-    // ========================================================
 
-    const html = await response.text();
+    // ======= הפתרון: שימוש בשירות פרוקסי שעוקף את החסימה =======
+    // אנחנו עוטפים את הקישור של טלגרם בתוך הקישור של שירות הפרוקסי
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+    
+    const response = await fetch(proxyUrl);
+    const data = await response.json();
+    
+    // הפרוקסי מחזיר לנו את כל קוד האתר של טלגרם בתוך משתנה שנקרא contents
+    const html = data.contents;
+
+    if (!html) {
+      return res.status(500).json({ error: "הפרוקסי החזיר תשובה ריקה" });
+    }
+    // ==========================================================
 
     const items = [];
     let oldestId = null;
@@ -29,12 +32,11 @@ export default async function handler(req, res) {
     const messageBlocks = html.split("tgme_widget_message_wrap").slice(1);
 
     messageBlocks.forEach((block) => {
-      // חילוץ מזהה ההודעה כדי שנדע מאיפה להמשיך לטעון בפעם הבאה
       let idMatch = block.match(/data-post="[^/]+\/(\d+)"/);
       if (idMatch) {
         const currentId = parseInt(idMatch[1]);
         if (!oldestId || currentId < oldestId) {
-          oldestId = currentId; // שומרים את ה-ID הכי קטן (הכי ישן)
+          oldestId = currentId; 
         }
       }
 
@@ -48,7 +50,6 @@ export default async function handler(req, res) {
         ? `<div style="margin-top:10px;"><img src="${imgMatch[1]}" style="max-width:100%; border-radius:8px;"></div>`
         : "";
 
-      // חדש: חילוץ סרטונים!
       let videoMatch = block.match(/<video[^>]*src="([^"]+)"/);
       let video = videoMatch
         ? `<div style="margin-top:10px;"><video src="${videoMatch[1]}" controls style="max-width:100%; border-radius:8px; background: #000;"></video></div>`
@@ -65,11 +66,10 @@ export default async function handler(req, res) {
       }
     });
 
-    // פותר את בעיית האיטיות: שומר בזיכרון (Cache) למשך 60 שניות
     res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate");
-
     res.status(200).json({ items: items.reverse(), nextOffset: oldestId });
+    
   } catch (error) {
-    res.status(500).json({ error: "שגיאה במשיכת הנתונים ישירות מטלגרם" });
+    res.status(500).json({ error: "שגיאה בתקשורת עם הפרוקסי או טלגרם" });
   }
 }
