@@ -1,57 +1,75 @@
 export default async function handler(req, res) {
-  const { channel } = req.query;
+  const { channel, before } = req.query;
 
   if (!channel) {
     return res.status(400).json({ error: "חסר שם ערוץ" });
   }
 
   try {
-    // רשימה של שרתי גיבוי פרטיים (RSSHub) שיודעים להחזיר JSON נקי
-    // השרת שלנו ידלג ביניהם עד שימצא אחד פנוי שלא נחסם על ידי טלגרם
-    const instances = [
-      `https://rsshub.rssforever.com/telegram/channel/${channel}?format=json`,
-      `https://rsshub.mxd.kro.kr/telegram/channel/${channel}?format=json`,
-      `https://hub.slarker.me/telegram/channel/${channel}?format=json`,
-    ];
-
-    let data = null;
-
-    // לולאה שמנסה כל שרת בתורו
-    for (let url of instances) {
-      try {
-        const response = await fetch(url, {
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-          },
-        });
-
-        if (response.ok) {
-          data = await response.json();
-          break; // ברגע ששרת אחד ענה בהצלחה, יוצאים מהלולאה!
+    const url = before
+      ? `https://t.me/s/${channel}?before=${before}`
+      : `https://t.me/s/${channel}`;
+      
+    const response = await fetch(url, {
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5'
         }
-      } catch (e) {
-        continue; // אם השרת נכשל, ממשיכים אוטומטית לשרת הבא
+    });
+    
+    const html = await response.text();
+
+    const items = [];
+    let oldestId = null;
+
+    const messageBlocks = html.split("tgme_widget_message_wrap").slice(1);
+
+    messageBlocks.forEach((block) => {
+      let idMatch = block.match(/data-post="[^/]+\/(\d+)"/);
+      if (idMatch) {
+        const currentId = parseInt(idMatch[1]);
+        if (!oldestId || currentId < oldestId) {
+          oldestId = currentId; 
+        }
       }
-    }
 
-    // אם כל השרתים נכשלו או החזירו תשובה ריקה
-    if (!data || !data.items || data.items.length === 0) {
-      return res.status(200).json({ items: [], nextOffset: null });
-    }
+      let textMatch = block.match(/<div class="tgme_widget_message_text[^>]*>([\s\S]*?)<\/div>/);
+      let text = textMatch ? textMatch[1] : "";
 
-    // סידור הנתונים לפורמט שהעיצוב שלנו (HTML) מכיר
-    const items = data.items.map((item) => {
-      return {
-        description: item.content_html || item.title || "",
-        pubDate: item.date_published,
-      };
+      // חילוץ כל התמונות
+      let images = [];
+      let imgRegex = /background-image:url\('([^']+)'\)/g;
+      let imgMatch;
+      while ((imgMatch = imgRegex.exec(block)) !== null) {
+          images.push(imgMatch[1]);
+      }
+
+      // חילוץ כל הסרטונים
+      let videos = [];
+      let vidRegex = /<video[^>]*src="([^"]+)"/g;
+      let vidMatch;
+      while ((vidMatch = vidRegex.exec(block)) !== null) {
+          videos.push(vidMatch[1]);
+      }
+
+      let dateMatch = block.match(/<time datetime="([^"]+)"/);
+      let date = dateMatch ? dateMatch[1] : new Date().toISOString();
+
+      if (text || images.length > 0 || videos.length > 0) {
+        items.push({
+          text: text,
+          images: images,
+          videos: videos,
+          pubDate: date,
+        });
+      }
     });
 
     res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate");
+    res.status(200).json({ items: items.reverse(), nextOffset: oldestId });
 
-    // מחזירים את התשובה (ללא מזהה להיסטוריה, כי השרתים האלו נותנים רק חדשים)
-    res.status(200).json({ items: items, nextOffset: null });
   } catch (error) {
-    res.status(500).json({ error: "שגיאה כללית במשיכת הנתונים" });
+    res.status(500).json({ error: "שגיאה במשיכת הנתונים ישירות מטלגרם" });
   }
 }

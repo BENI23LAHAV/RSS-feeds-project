@@ -151,7 +151,18 @@
       const feedContainer = document.getElementById("feed");
       const loadMoreBtn = document.getElementById("loadMoreBtn");
 
-      // פונקציה חדשה שמטפלת בניתוב (כדי שהריפרש יעבוד)
+      // פונקציה שמטפלת בלחיצה על כפתור התצוגה המקופלת
+      window.toggleMedia = function (id, btn, count) {
+        const div = document.getElementById(id);
+        if (div.style.display === "none") {
+          div.style.display = "block";
+          btn.innerHTML = "הסתר קבצים 🔼";
+        } else {
+          div.style.display = "none";
+          btn.innerHTML = `הצג עוד ${count} קבצים 🔽`;
+        }
+      };
+
       function handleRouting() {
         const hash = window.location.hash.substring(1);
         let activeChannel = channels.find((c) => c.id === hash);
@@ -181,7 +192,6 @@
           btn.textContent = channel.name;
 
           btn.onclick = () => {
-            // כאן אנחנו משנים את הכתובת למעלה במקום לטעון ישירות
             window.location.hash = channel.id;
           };
           tabsContainer.appendChild(btn);
@@ -219,7 +229,7 @@
               return;
             }
 
-            data.items.forEach((item) => {
+            data.items.forEach((item, index) => {
               const postDiv = document.createElement("div");
               postDiv.className = "post";
               const date = new Date(item.pubDate).toLocaleString("he-IL", {
@@ -230,9 +240,52 @@
                 minute: "2-digit",
               });
 
+              let textHtml = item.text
+                ? `<div style="margin-bottom:10px;">${item.text}</div>`
+                : "";
+
+              let mediaElements = [];
+              item.images.forEach((src) => {
+                mediaElements.push(
+                  `<img src="${src}" style="max-width:100%; border-radius:8px; margin-top:5px; display:block;">`,
+                );
+              });
+              item.videos.forEach((src) => {
+                mediaElements.push(
+                  `<video src="${src}" controls style="max-width:100%; border-radius:8px; background: #000; margin-top:5px; display:block;"></video>`,
+                );
+              });
+
+              let allMediaHtml = "";
+              let mediaCount = mediaElements.length;
+
+              if (mediaCount > 0) {
+                if (mediaCount === 1) {
+                  allMediaHtml = mediaElements[0];
+                } else {
+                  let firstMedia = mediaElements[0];
+                  let restMedia = mediaElements.slice(1).join("");
+                  // יצירת מזהה ייחודי לכל בלוק תמונות
+                  let toggleId = `toggle-${currentOffset}-${index}-${Math.random().toString(36).substr(2, 5)}`;
+
+                  allMediaHtml = `
+                                    ${firstMedia}
+                                    <div id="${toggleId}" style="display:none; margin-top:5px;">
+                                        ${restMedia}
+                                    </div>
+                                    <button onclick="toggleMedia('${toggleId}', this, ${mediaCount - 1})" style="margin-top: 10px; width: 100%; padding: 8px; background: #e2e8f0; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-family: inherit;">
+                                        הצג עוד ${mediaCount - 1} קבצים 🔽
+                                    </button>
+                                `;
+                }
+              }
+
               postDiv.innerHTML = `
                             <div class="date">${date}</div>
-                            <div class="content">${item.description}</div>
+                            <div class="content">
+                                ${textHtml}
+                                ${allMediaHtml}
+                            </div>
                         `;
               feedContainer.appendChild(postDiv);
             });
@@ -264,7 +317,6 @@
         }
       });
 
-      // הפעלה ראשונית וחיבור הניתוב
       if (channels.length > 0) {
         renderTabs();
         window.addEventListener("hashchange", handleRouting);
